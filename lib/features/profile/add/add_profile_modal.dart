@@ -21,7 +21,10 @@ class AddProfileModal extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = ref.watch(addProfileNotifierProvider).isLoading;
     final currentWidget = ref.watch(addProfilePageNotifierProvider);
-    ref.listen(freeSwitchNotifierProvider, (_, _) {});
+    
+    // 【修改点 1】: 注释掉对免费节点开关状态的监听，因为我们不再需要它
+    // ref.listen(freeSwitchNotifierProvider, (_, _) {});
+    
     ref.listen(addProfileNotifierProvider, (previous, next) {
       if (next case AsyncData(value: final _?)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -53,7 +56,10 @@ class AddProfileOptions extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // final isLoadingProfile = ref.watch(addProfileNotifierProvider).isLoading;
-    final freeSwitch = ref.watch(freeSwitchNotifierProvider);
+    
+    // 【修改点 2】: 强行将 freeSwitch 设置为 false，彻底阻断免费节点列表的展开逻辑
+    const freeSwitch = false; 
+    
     final isDesktop = PlatformUtils.isDesktop;
     final gapCount = isDesktop ? AddProfileModalConst.fixBtnsGapCountDesktop : AddProfileModalConst.fixBtnsGapCount;
     final itemCount = isDesktop ? AddProfileModalConst.fixBtnsItemCountDesktop : AddProfileModalConst.fixBtnsItemCount;
@@ -78,7 +84,10 @@ class AddProfileOptions extends HookConsumerWidget {
               const Gap(AddProfileModalConst.fixBtnsGap),
               FixBtns(height: fixBtnsHeight),
               if (freeSwitch) Expanded(child: FreeBtns(scrollController: scrollController)) else const Spacer(),
-              const NavBar(),
+              
+              // 【修改点 3】: 直接注释掉 NavBar()。这里面包裹了你的截图中看到的“免费”开关和“帮助”按钮。
+              // 注释掉后，它们会一起从 UI 上消失。
+              // const NavBar(),
             ],
           ),
         );
