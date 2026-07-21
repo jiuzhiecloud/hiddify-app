@@ -33,6 +33,27 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
       loggy.debug("disposing");
       _cancelToken?.cancel();
     });
+    
+    // 【核心新增】：应用一启动，在后台自动静默添加你的专属订阅
+    Future.microtask(() async {
+      try {
+        const mySubUrl = 'https://raw.githubusercontent.com/jiuzhiecloud/nodesub/refs/heads/main/sub.txt';
+        final repo = ref.read(profileRepositoryProvider).requireValue;
+        
+        // 检查本地是否已经有配置，如果没有则自动写入默认订阅
+        final currentProfiles = await repo.watchProfiles().first;
+        if (currentProfiles.isEmpty) {
+          loggy.info("No profile found, auto-adding default subscription.");
+          await repo.upsertRemote(
+            mySubUrl,
+            userOverride: const UserOverride(name: 'My Nodes'),
+          ).run();
+        }
+      } catch (e) {
+        loggy.warning("Failed to auto-add default subscription", e);
+      }
+    });
+
     listenSelf((previous, next) {
       final t = ref.read(translationsProvider).requireValue;
       final notification = ref.read(inAppNotificationControllerProvider);
@@ -64,8 +85,6 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
     if (state.isLoading) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      // final activeProfile = await ref.read(activeProfileProvider.future);
-      // final markAsActive = activeProfile == null || ref.read(Preferences.markNewProfileActive);
       final TaskEither<ProfileFailure, Unit> task;
       if (LinkParser.parse(rawInput) case (final rs)?) {
         loggy.debug("adding profile, url: [${rs.url}]");
