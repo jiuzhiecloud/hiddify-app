@@ -34,10 +34,9 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
       _cancelToken?.cancel();
     });
     
-    // 【核心新增/修改】：应用一启动，在后台自动静默添加你的多个专属订阅
+    // 【已修正】：直接静默循环添加订阅，避免调用不存在的 watchProfiles 方法
     Future.microtask(() async {
       try {
-        // 在这里把你的多个订阅链接放入列表（以后如果还要加第3个、第4个，直接往这个列表里加双引号字符串即可）
         final mySubUrls = [
           'https://raw.githubusercontent.com/jiuzhiecloud/nodesub/refs/heads/main/sub.txt#免费',
           'https://raw.githubusercontent.com/jiuzhiecloud/nodesub/refs/heads/main/%E8%87%AA%E5%BB%BA%E8%8A%82%E7%82%B9#自建',
@@ -45,16 +44,12 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
         
         final repo = ref.read(profileRepositoryProvider).requireValue;
         
-        // 检查本地是否已经有配置，如果没有则自动批量写入
-        final currentProfiles = await repo.watchProfiles().first;
-        if (currentProfiles.isEmpty) {
-          loggy.info("No profile found, auto-adding default subscriptions.");
-          for (int i = 0; i < mySubUrls.length; i++) {
-            await repo.upsertRemote(
-              mySubUrls[i],
-              userOverride: UserOverride(name: 'My Nodes ${i + 1}'),
-            ).run();
-          }
+        loggy.info("Auto-adding default subscriptions on startup.");
+        for (int i = 0; i < mySubUrls.length; i++) {
+          await repo.upsertRemote(
+            mySubUrls[i],
+            userOverride: UserOverride(name: 'JiuzhieCloud ${i + 1}'),
+          ).run();
         }
       } catch (e) {
         loggy.warning("Failed to auto-add default subscriptions", e);
