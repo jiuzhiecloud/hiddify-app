@@ -112,7 +112,7 @@ class VPNService : VpnService(), PlatformInterfaceWrapper {
         }
 
         if (options.autoRoute) {
-            builder.addDnsServer(options.dnsServerAddress.value)
+            builder.addDnsServer(options.dnsServerAddress)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val inet4RouteAddress = options.inet4RouteAddress
@@ -219,7 +219,7 @@ class VPNService : VpnService(), PlatformInterfaceWrapper {
     }
 
     // 【新增】：补齐缺失的 closeNeighborMonitor 接口方法
-    override fun closeNeighborMonitor() {
+    override fun closeNeighborMonitor(listener: com.hiddify.core.libbox.NeighborUpdateListener?) {
         // 留空即可，只需要让编译器知道有这个方法实现
     }
 }
