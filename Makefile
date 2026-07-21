@@ -265,9 +265,8 @@ gen_translations: #generating missing translations using google translate
 
 android-release: android-apk-release android-aab-release
 
-# 【已修改】：将原本的 release 改为 debug 模式，跳过签名证书校验
 android-apk-release:
-	flutter build apk --debug \
+	flutter build apk --release \
 	  --target=$(TARGET) \
 	  --dart-define=sentry_dsn=$(SENTRY_DSN)
 	mkdir -p build/app/outputs/flutter-apk
