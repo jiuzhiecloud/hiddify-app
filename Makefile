@@ -200,7 +200,7 @@ linux-install-deps:
 	fi
 	chmod +x /tmp/appimagetool
 	sudo mv /tmp/appimagetool /usr/local/bin/
-#   cloning flutter sdk
+#    cloning flutter sdk
 	@$(BLUE)Cloning Flutter SDK$(DONE); \
 	mkdir -p ~/develop; \
 	cd ~/develop; \
@@ -265,14 +265,12 @@ gen_translations: #generating missing translations using google translate
 
 android-release: android-apk-release android-aab-release
 
+# 【已修改】：将原本的 release 改为 debug 模式，跳过签名证书校验
 android-apk-release:
-	fastforge package \
-	  --platform android \
-	  --targets apk \
-	  --skip-clean \
-	  --build-target=$(TARGET) \
-	  --build-target-platform=android-arm,android-arm64,android-x64 \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	flutter build apk --debug \
+	  --target=$(TARGET) \
+	  --dart-define=sentry_dsn=$(SENTRY_DSN)
+	mkdir -p build/app/outputs/flutter-apk
 	ls -R build/app/outputs
 
 android-aab-release:
@@ -340,36 +338,6 @@ linux-deb-release:
 	--build-target=$(TARGET) \
 	--build-dart-define=sentry_dsn=$(SENTRY_DSN)
 
-
-# ==============================================================================
-# REFERENCE: MANUAL LIBRARY BUNDLING (INJECTION)
-# ==============================================================================
-# Use this method only if you need to manually force specific shared libraries 
-# (e.g., libcurl.so.4) into the AppImage bundle.
-#
-# IMPLEMENTATION STEPS:
-#
-# 1. PRE-BUILD SCRIPT (Add to Makefile before build command):
-#    Create a temporary directory and copy the target library there.
-#    ---------------------------------------------------------------------------
-#    mkdir -p linux/bundled_libs
-#    cp /usr/lib/x86_64-linux-gnu/libcurl.so.4 linux/bundled_libs/
-#    ---------------------------------------------------------------------------
-#
-# 2. CMAKE CONFIGURATION (Add to linux/CMakeLists.txt):
-#    Instruct CMake to include the copied file in the final bundle.
-#    ---------------------------------------------------------------------------
-#    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/bundled_libs/libcurl.so.4"
-#       DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-#       COMPONENT Runtime)
-#    ---------------------------------------------------------------------------
-#
-# ! WARNING !
-# This approach is generally DISCOURAGED. Manually bundling libraries can lead to
-# "Dependency Hell," where bundled libs conflict with system libraries or have
-# their own unresolved dependencies. It increases maintenance cost and may cause
-# runtime instability. Use only for specific edge cases where standard linking fails.
-# ==============================================================================
 linux-appimage-release:
 	fastforge package \
 	--platform linux \
@@ -526,7 +494,7 @@ build-macos-libs:
 
 build-ios-libs: 
 	rm -rf $(IOS_OUT)/HiddifyCore.xcframework 
-	make -C hiddify-core -f Makefile ios  
+	make -C hiddify-core -f Makefile ios   
 	mv $(BINDIR)/HiddifyCore.xcframework $(IOS_OUT)/HiddifyCore.xcframework
 
 release: # Create a new tag for release.
@@ -539,4 +507,3 @@ ios-temp-prepare:
 	flutter build ios-framework
 	cd ios
 	pod install
-	
