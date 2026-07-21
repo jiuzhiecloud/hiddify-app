@@ -11,7 +11,7 @@ on:
         default: "draft"
       channel:
         type: string
-        default: "dev"
+        default: "prod"
   workflow_call:
     inputs:
       upload-artifact:
@@ -26,7 +26,7 @@ on:
 
 env:
   IS_GITHUB_ACTIONS: 1
-  CHANNEL: "${{ inputs.channel }}"
+  CHANNEL: "prod"
   FLUTTER_VERSION: '3.38.5'
   NDK_VERSION: r28c
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
