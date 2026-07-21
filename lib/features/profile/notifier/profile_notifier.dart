@@ -33,29 +33,6 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
       loggy.debug("disposing");
       _cancelToken?.cancel();
     });
-    
-    // 【已修正】：直接静默循环添加订阅，避免调用不存在的 watchProfiles 方法
-    Future.microtask(() async {
-      try {
-        final mySubUrls = [
-          'https://raw.githubusercontent.com/jiuzhiecloud/nodesub/refs/heads/main/sub.txt#免费',
-          'https://raw.githubusercontent.com/jiuzhiecloud/nodesub/refs/heads/main/%E8%87%AA%E5%BB%BA%E8%8A%82%E7%82%B9#自建',
-        ];
-        
-        final repo = ref.read(profileRepositoryProvider).requireValue;
-        
-        loggy.info("Auto-adding default subscriptions on startup.");
-        for (int i = 0; i < mySubUrls.length; i++) {
-          await repo.upsertRemote(
-            mySubUrls[i],
-            userOverride: UserOverride(name: 'JiuzhieCloud ${i + 1}'),
-          ).run();
-        }
-      } catch (e) {
-        loggy.warning("Failed to auto-add default subscriptions", e);
-      }
-    });
-
     listenSelf((previous, next) {
       final t = ref.read(translationsProvider).requireValue;
       final notification = ref.read(inAppNotificationControllerProvider);
@@ -87,6 +64,8 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
     if (state.isLoading) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
+      // final activeProfile = await ref.read(activeProfileProvider.future);
+      // final markAsActive = activeProfile == null || ref.read(Preferences.markNewProfileActive);
       final TaskEither<ProfileFailure, Unit> task;
       if (LinkParser.parse(rawInput) case (final rs)?) {
         loggy.debug("adding profile, url: [${rs.url}]");
