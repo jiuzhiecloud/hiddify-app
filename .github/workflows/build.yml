@@ -1,40 +1,165 @@
-name: Build Android APK
-
+name: Build
 on:
-  push:
-    branches: [ "**" ]
+  # 添加了手动触发功能，保留了与自动调用相同的参数
   workflow_dispatch:
+    inputs:
+      upload-artifact:
+        type: boolean
+        default: true
+      tag-name:
+        type: string
+        default: "draft"
+      channel:
+        type: string
+        default: "dev"
+  workflow_call:
+    inputs:
+      upload-artifact:
+        type: boolean
+        default: true
+      tag-name:
+        type: string
+        default: "draft"
+      channel:
+        type: string
+        default: "dev"
+
+env:
+  IS_GITHUB_ACTIONS: 1
+  CHANNEL: "${{ inputs.channel }}"
+  FLUTTER_VERSION: '3.38.5'
+  NDK_VERSION: r28c
+  UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
+  TAG_NAME: "${{ inputs.tag-name }}"
+  # 清理了其他平台的无关变量，只保留安卓相关
+  TARGET_NAME_apk: "Hiddify-Android"
 
 jobs:
-  build-android-apk:
+  test:
+    outputs:
+      draftBuildCode: ${{ steps.draftBuildCode.outputs.datetime }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2.21.0
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+          
+      - name: Prepare
+        run: make linux-amd64-prepare
+      - name: Test
+        run: flutter test
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: make draftBuildCode
+        id: draftBuildCode
+        run: echo "::set-output name=datetime::$(date +'%d.%H.%M')"
+
+  build:
+    needs: test
+    permissions: write-all
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 矩阵中仅保留安卓 APK 编译
+          - platform: android-apk
+            os: ubuntu-latest
+            targets: apk
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.21.0 
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Run code generation
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Build Debug APK
-        run: flutter build apk --debug
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Clean up disk space
+        if: startsWith(matrix.platform,'android')
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          df -h
+          sudo rm -rf /opt/ghc
+          df -h
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+          rm -rf ~/.gradle/caches
+          df -h
+          sudo apt-get autoremove -y
+          df -h
+          sudo apt-get clean 
+          df -h
+          tree
+      
+      - name: Setup Java
+        if: startsWith(matrix.platform,'android')
+        uses: actions/setup-java@v5
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          distribution: 'zulu'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        if: startsWith(matrix.platform,'android')
+     
+      - name: Cache Gradle
+        uses: actions/cache@v5
+        if: startsWith(matrix.platform,'android')
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+                  
+      - name: Setup dependencies
+        run: |
+          make ${{ matrix.platform }}-install-deps  
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Setup Android Signing Properties
+        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'android') }}
+        run: |
+          echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/key.jks
+          echo "storeFile=$(pwd)/android/key.jks" > android/key.properties
+          echo "storePassword=${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}" >> android/key.properties
+
+      - name: Prepare for ${{ matrix.platform }}
+        run: |
+          make ${{ matrix.platform }}-prepare
+
+      - name: Build ${{ matrix.platform }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          make ${{ matrix.platform }}-release
+
+      - name: Copy to out Android APK
+        if: matrix.platform == 'android-apk'
+        run: |
+          mkdir out
+          ls -R ./build/app/outputs
+          cp ./build/app/outputs/flutter-apk/*arm64-v8a*.apk out/${TARGET_NAME_apk}-arm64.apk || echo "no arm64 apk"
+          cp ./build/app/outputs/flutter-apk/*armeabi-v7a*.apk out/${TARGET_NAME_apk}-arm7.apk || echo "no arm7 apk"
+          cp ./build/app/outputs/flutter-apk/*x86_64*.apk out/${TARGET_NAME_apk}-x86_64.apk || echo "no x64 apk"
+          cp ./build/app/outputs/flutter-apk/app-release.apk out/${TARGET_NAME_apk}-universal.apk || echo "no universal apk"
+
+      - name: Upload Artifact
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{matrix.platform}}
+          path: ./out
+          retention-days: 1
